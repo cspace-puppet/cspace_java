@@ -44,10 +44,11 @@ include stdlib # for join()
 
 class cspace_java {
 
-  $os_family                 = $cspace_environment::osfamily::os_family
-  $linux_exec_paths          = $cspace_environment::execpaths::linux_default_exec_paths
   $linux_combined_exec_paths = $cspace_environment::execpaths::linux_combined_exec_paths
+  $linux_exec_paths          = $cspace_environment::execpaths::linux_default_exec_paths
   $osx_exec_paths            = $cspace_environment::execpaths::osx_default_exec_paths
+  $os_bits                   = $cspace_environment::osbits::os_bits
+  $os_family                 = $cspace_environment::osfamily::os_family
   $temp_dir                  = $cspace_environment::tempdir::system_temp_directory
   
   # ---------------------------------------------------------
@@ -57,16 +58,12 @@ class cspace_java {
   
   # RedHat-based systems appear to alias 'update-alternatives' to RedHat's
   # executable file 'alternatives', perhaps for cross-platform compatibility?
-  
-  # FIXME: Remove hard-coded '/usr/bin' from command paths below, once we figure out
-  # why the 'path' attribute isn't being reflected as expected. (On RedHat-based
-  # systems, 'update-alternatives' might be found in '/usr/sbin' instead.)
-  
+    
   # Define a custom resource to install commands via the Linux 'alternatives' system.
   define alternatives-install ( $cmd = $title, $target_dir, $source_dir, $priority = '20000' ) {
     exec { "Install alternative for ${cmd} with priority ${priority}":
-      command   => "/usr/bin/update-alternatives --install ${target_dir}/${cmd} ${cmd} ${source_dir}/${cmd} ${priority}",
-      path      => $linux_combined_exec_paths,
+      command   => "update-alternatives --install ${target_dir}/${cmd} ${cmd} ${source_dir}/${cmd} ${priority}",
+      path      => $cspace_environment::execpaths::linux_combined_exec_paths,
       logoutput => on_failure,
     }
   }
@@ -75,8 +72,8 @@ class cspace_java {
   # via the Linux 'alternatives' system.
   define alternatives-config ( $cmd = $title, $source_dir ) {
     exec { "Config default alternative for ${cmd} pointing to source directory ${source_dir}":
-      command   => "/usr/bin/update-alternatives --set ${cmd} ${source_dir}/${cmd}",
-      path      => $linux_combined_exec_paths,
+      command   => "update-alternatives --set ${cmd} ${source_dir}/${cmd}",
+      path      => $cspace_environment::execpaths::linux_combined_exec_paths,
       logoutput => on_failure,
     }
   }
@@ -126,8 +123,18 @@ class cspace_java {
       # later be installed alongside OpenJDK.
     
       # TODO: Determine whether there's some non-hard-coded way to identify these paths.
-      $java_target_dir  = '/usr/bin' # where to install aliases to java executables
-      $java_source_dir  = "/usr/lib/jvm/java-7-openjdk-i386/bin" # where to find these executables
+      
+      # Where to install aliases to java executables
+      $java_target_dir  = '/usr/bin'
+      
+      # Where to find these executables
+      if $os_bits == '64-bit' {
+        $openjdk_dir_suffix = 'amd64'
+      } elsif $os_bits == '32-bit' {
+        $openjdk_dir_suffix = 'i386'
+      }
+      $openjdk_dir     = "/usr/lib/jvm/java-7-openjdk-${openjdk_dir_suffix}"
+      $java_source_dir = "${openjdk_dir}/bin"
       
       # TODO: Investigate possible use of the Ubuntu 'update-java-alternatives' command.
   
