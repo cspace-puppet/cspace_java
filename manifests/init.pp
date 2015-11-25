@@ -154,13 +154,37 @@ class cspace_java {
     
     }
     
+    CentOS: {
+      
+      # Uncomment for debugging as needed:
+      # notice( "Detected CentOS" )
+
+      $exec_paths = $linux_exec_paths
+
+      exec { 'Update yum before Java update to reflect current packages' :
+        command   => 'yum -y update',
+        path      => $exec_paths,
+        logoutput => on_failure,
+      }
+
+      package { 'Install OpenJDK 7' :
+        ensure    => installed,
+        name      => 'java-1.7.0-openjdk-devel',
+        require   => Exec[ 'Update yum before Java update to reflect current packages' ],
+      }
+      
+      # TODO: Ensure that key commands from the installed OpenJDK package
+      # are reflected in the 'alternatives' system
+      
+    }
+    
   } # end case $::operatingsystem
 
   # ---------------------------------------------------------
   # Install Oracle Java
   # ---------------------------------------------------------
   
-  unless $::operatingsystem == 'Ubuntu' {   
+  unless $::operatingsystem == 'Ubuntu' or $::operatingsystem == 'CentOS' {   
   
     # The following values for Java version, update number, and build number
     # MUST be manually updated whenever the Oracle Java SE JDK is updated.
