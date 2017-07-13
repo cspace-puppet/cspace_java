@@ -1,6 +1,6 @@
 # == Class: cspace_java
 #
-# Manages the availability of either OpenJDK 7 or the Oracle Java SE (Standard Edition) version 7
+# Manages the availability of either OpenJDK 8 or the Oracle Java SE (Standard Edition) version 8
 # Java Development Kit (JDK), a prerequisite for a CollectionSpace server installation.
 #
 # === Parameters
@@ -83,13 +83,13 @@ class cspace_java {
   # ---------------------------------------------------------
   
   # TODO: Successively switch over other Linux distributions to
-  # install OpenJDK 7, rather than the Oracle Java SE 7 JDK.
+  # install OpenJDK 8, rather than the Oracle Java SE 8 JDK.
   # (We'll likely start with Debian, then move on to RedHat-based distros.)
   #
   # Before doing so, verify support in each distro for OpenJDK versions.
   # Some distros might not offer current, or long-term, support
-  # for version 7. (We currently believe that Debian-based
-  # distros will support OpenJDK 7 for some considerable time.)
+  # for version 8. (We currently believe that Debian-based
+  # distros will support OpenJDK 8 for some considerable time.)
   
   case $::operatingsystem {
   
@@ -106,9 +106,9 @@ class cspace_java {
         logoutput => on_failure,
       }
 
-      package { 'Install OpenJDK 7' :
+      package { 'Install OpenJDK 8' :
         ensure    => installed,
-        name      => 'openjdk-7-jdk',
+        name      => 'openjdk-8-jdk',
         require   => Exec[ 'Update apt-get before Java update to reflect current packages' ],
       }
           
@@ -133,7 +133,7 @@ class cspace_java {
       } elsif $os_bits == '32-bit' {
         $openjdk_dir_suffix = 'i386'
       }
-      $openjdk_dir     = "/usr/lib/jvm/java-7-openjdk-${openjdk_dir_suffix}"
+      $openjdk_dir     = "/usr/lib/jvm/java-8-openjdk-${openjdk_dir_suffix}"
       $java_source_dir = "${openjdk_dir}/bin"
       
       # TODO: Investigate possible use of the Ubuntu 'update-java-alternatives' command.
@@ -144,7 +144,7 @@ class cspace_java {
         target_dir => $java_target_dir,
         source_dir => $java_source_dir,
         before     => Alternatives-config [ 'java', 'javac' ],
-        require    => Package[ 'Install OpenJDK 7' ],
+        require    => Package[ 'Install OpenJDK 8' ],
       }
 
       # Uses custom 'alternatives-config' resource defined above.
@@ -167,9 +167,9 @@ class cspace_java {
         logoutput => on_failure,
       }
 
-      package { 'Install OpenJDK 7' :
+      package { 'Install OpenJDK 8' :
         ensure    => installed,
-        name      => 'java-1.7.0-openjdk-devel',
+        name      => 'java-1.8.0-openjdk-devel',
         require   => Exec[ 'Update yum before Java update to reflect current packages' ],
       }
       
@@ -196,17 +196,17 @@ class cspace_java {
     # If/when the Java version reaches double-digits ('10'), or if the
     # equivalance between 'Java n' and JDK '1.n' for any version 'n' might
     # be changed, some path and code changes below will be required.
-    $java_version        = '7'
-    $update_number       = '55'
-    $build_number        = '13'
+    $java_version        = '8'
+    $update_number       = '91'
+    $build_number        = '14'
   
     # The following reflects naming conventions currently used by Oracle.
     # This code will break and require modification if any of the following
     # conventions change, either for Java version numbers or for URLs on
     # Oracle's Java SE downloads website.
-    # E.g. gives JDK version '7u55' for Java version 7, update 55
+    # E.g. gives JDK version '8u91' for Java version 8, update 91
     $jdk_version         = "${java_version}u${update_number}"
-    # E.g. gives build version 'b13' for build 13
+    # E.g. gives build version 'b14' for build 14
     $build_version       = "b${build_number}"
   
     $platform = $os_family ? {
@@ -330,8 +330,8 @@ class cspace_java {
     
     case $::operatingsystem {
     
-      # TODO: Investigate whether we can succinctly install OpenJDK 7
-      # under Debian 7/8, as we can under Ubuntu 14.04.x LTS
+      # TODO: Investigate whether we can succinctly install OpenJDK 8
+      # under Debian 7/8, as we can under Ubuntu 16.04.x LTS
     
       Debian: {
 
@@ -390,7 +390,7 @@ class cspace_java {
         }
       
         # Run an expect script to invoke 'make-jpkg', to generate a .deb package
-        # file for installing Oracle Java 7 from Oracle's binary tarball (.tar.gz) file
+        # file for installing Oracle Java 8 from Oracle's binary tarball (.tar.gz) file
         # for that Java release. The expect script provides responses at various
         # interactive prompts, allowing 'make-jpkg' to run unattended.
         notify { 'Creating Debian package for Oracle Java':
