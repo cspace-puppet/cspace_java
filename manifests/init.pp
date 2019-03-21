@@ -50,38 +50,38 @@ class cspace_java {
   $os_bits                   = $cspace_environment::osbits::os_bits
   $os_family                 = $cspace_environment::osfamily::os_family
   $temp_dir                  = $cspace_environment::tempdir::system_temp_directory
-  
+
   # ---------------------------------------------------------
   # Define custom resources related to the Linux
   # 'alternatives' system
   # ---------------------------------------------------------
-  
+
   # RedHat-based systems appear to alias 'update-alternatives' to RedHat's
   # executable file 'alternatives', perhaps for cross-platform compatibility?
-    
+
   # Define a custom resource to install commands via the Linux 'alternatives' system.
-  define alternatives-install ( $cmd = $title, $target_dir, $source_dir, $priority = '20000' ) {
+  define alternatives_install ( $cmd = $title, $target_dir, $source_dir, $priority = '20000' ) {
     exec { "Install alternative for ${cmd} with priority ${priority}":
       command   => "update-alternatives --install ${target_dir}/${cmd} ${cmd} ${source_dir}/${cmd} ${priority}",
       path      => $cspace_environment::execpaths::linux_combined_exec_paths,
       logoutput => on_failure,
     }
   }
-  
+
   # Define a custom resource to configure ('set') commands as defaults
   # via the Linux 'alternatives' system.
-  define alternatives-config ( $cmd = $title, $source_dir ) {
+  define alternatives_config ( $cmd = $title, $source_dir ) {
     exec { "Config default alternative for ${cmd} pointing to source directory ${source_dir}":
       command   => "update-alternatives --set ${cmd} ${source_dir}/${cmd}",
       path      => $cspace_environment::execpaths::linux_combined_exec_paths,
       logoutput => on_failure,
     }
   }
-  
+
   # ---------------------------------------------------------
   # Install OpenJDK
   # ---------------------------------------------------------
-  
+
   # TODO: Successively switch over other Linux distributions to
   # install OpenJDK 8, rather than the Oracle Java SE 8 JDK.
   # (We'll likely start with Debian, then move on to RedHat-based distros.)
@@ -90,11 +90,11 @@ class cspace_java {
   # Some distros might not offer current, or long-term, support
   # for version 8. (We currently believe that Debian-based
   # distros will support OpenJDK 8 for some considerable time.)
-  
+
   case $::operatingsystem {
-  
-    Ubuntu: {
-    
+
+    'Ubuntu': {
+
       # Uncomment for debugging as needed:
       # notice( "Detected Ubuntu" )
 
@@ -106,56 +106,27 @@ class cspace_java {
         logoutput => on_failure,
       }
 
+      package { 'Install OpenJDK 8 JRE' :
+        ensure    => installed,
+        name      => 'openjdk-8-jre-headless',
+        require   => Exec['Update apt-get before Java update to reflect current packages'],
+      }
+
       package { 'Install OpenJDK 8' :
         ensure    => installed,
         name      => 'openjdk-8-jdk',
-        require   => Exec[ 'Update apt-get before Java update to reflect current packages' ],
-      }
-          
-      # ---------------------------------------------------------
-      # Add key Java commands to the Linux 'alternatives' system
-      # ---------------------------------------------------------
-    
-      # Add OpenJDK's key Java commands to the 'alternatives' system.
-      #
-      # This is valuable in case another Java distribution may already be
-      # installed on the target system, or another Java distribution might
-      # later be installed alongside OpenJDK.
-    
-      # TODO: Determine whether there's some non-hard-coded way to identify these paths.
-      
-      # Where to install aliases to java executables
-      $java_target_dir  = '/usr/bin'
-      
-      # Where to find these executables
-      if $os_bits == '64-bit' {
-        $openjdk_dir_suffix = 'amd64'
-      } elsif $os_bits == '32-bit' {
-        $openjdk_dir_suffix = 'i386'
-      }
-      $openjdk_dir     = "/usr/lib/jvm/java-8-openjdk-${openjdk_dir_suffix}"
-      $java_source_dir = "${openjdk_dir}/bin"
-      
-      # TODO: Investigate possible use of the Ubuntu 'update-java-alternatives' command.
-  
-      # Uses custom 'alternatives-install' resource defined above.
-      # See http://stackoverflow.com/a/6403457 for this looping technique
-      alternatives-install { [ 'java', 'javac' ]:
-        target_dir => $java_target_dir,
-        source_dir => $java_source_dir,
-        before     => Alternatives-config [ 'java', 'javac' ],
-        require    => Package[ 'Install OpenJDK 8' ],
+        require   => Exec['Update apt-get before Java update to reflect current packages'],
       }
 
-      # Uses custom 'alternatives-config' resource defined above.
-      alternatives-config { [ 'java', 'javac' ]:
-        source_dir => $java_source_dir,
+      package { 'Purge OpenJDK 11 JRE' :
+        ensure    => absent,
+        name      => 'openjdk-11-jre-headless',
+        require   => Exec['Update apt-get before Java update to reflect current packages'],
       }
-    
     }
-    
-    CentOS: {
-      
+
+    'CentOS': {
+
       # Uncomment for debugging as needed:
       # notice( "Detected CentOS" )
 
@@ -170,22 +141,18 @@ class cspace_java {
       package { 'Install OpenJDK 8' :
         ensure    => installed,
         name      => 'java-1.8.0-openjdk-devel',
-        require   => Exec[ 'Update yum before Java update to reflect current packages' ],
+        require   => Exec['Update yum before Java update to reflect current packages'],
       }
-      
-      # TODO: Ensure that key commands from the installed OpenJDK package
-      # are reflected in the 'alternatives' system
-      
     }
-    
+
   } # end case $::operatingsystem
 
   # ---------------------------------------------------------
   # Install Oracle Java
   # ---------------------------------------------------------
-  
-  unless $::operatingsystem == 'Ubuntu' or $::operatingsystem == 'CentOS' {   
-  
+
+  unless $::operatingsystem == 'Ubuntu' or $::operatingsystem == 'CentOS' {
+
     # The following values for Java version, update number, and build number
     # MUST be manually updated whenever the Oracle Java SE JDK is updated.
     #
@@ -199,7 +166,7 @@ class cspace_java {
     $java_version        = '8'
     $update_number       = '91'
     $build_number        = '14'
-  
+
     # The following reflects naming conventions currently used by Oracle.
     # This code will break and require modification if any of the following
     # conventions change, either for Java version numbers or for URLs on
@@ -208,50 +175,50 @@ class cspace_java {
     $jdk_version         = "${java_version}u${update_number}"
     # E.g. gives build version 'b14' for build 14
     $build_version       = "b${build_number}"
-  
+
     $platform = $os_family ? {
         RedHat  => 'linux',
         Debian  => 'linux',
         darwin  => 'macosx',
         windows => 'windows',
     }
-  
+
     $os_bits = $cspace_environment::osbits::os_bits
     $architecture = $os_bits ? {
         32-bit => 'i586',
         64-bit => 'x64',
     }
-  
+
     $filename_extension = $os_family ? {
         RedHat  => '.rpm',
         Debian  => '.tar.gz',
         darwin  => '.dmg',
         windows => '.exe',
     }
-  
+
     $jdk_path_segment    = "${jdk_version}-${build_version}"
     $jdk_filename        = "jdk-${jdk_version}-${platform}-${architecture}${filename_extension}"
     # E.g. gives '7u55-b13/jdk-7u55-linux-x64.rpm' for Java version 7, update 55, build 13,
     # for Linux 64-bit RPM archives on RedHat-based Linux systems
     # and '7u55-b13/jdk-7u55-linux-i586.tar.gz' for Java version 7, update 55, build 13,
-    # for Linux 32-bit tarred and gzipped (tarball) archives on Debian-based Linux systems  
+    # for Linux 32-bit tarred and gzipped (tarball) archives on Debian-based Linux systems
     $jdk_url_path        = "${jdk_path_segment}/${jdk_filename}"
-  
+
     # Uncomment for debugging as needed:
     # notice("jdk_url_path=${jdk_url_path}")
-  
+
     case $os_family {
-        
-      RedHat, Debian: {
-      
+
+      'RedHat', 'Debian': {
+
         $exec_paths = $linux_exec_paths
-      
+
         exec { 'Find wget executable':
           command   => '/bin/sh -c "command -v wget"',
           path      => $exec_paths,
           logoutput => on_failure,
         }
-  
+
         # The cookie below helps validate that this automated process has
         # its users' consent to agree to Oracle's Java SE license terms.
         #
@@ -259,7 +226,7 @@ class cspace_java {
         # process in general, is subject to change on Oracle's part.
         # Whenever that changes, this code will need to be changed accordingly.
         $cookie = 'oraclelicense=accept-securebackup-cookie'
-      
+
         # Per http://stackoverflow.com/a/10959815
         $download_cmd = join(
           [
@@ -274,70 +241,70 @@ class cspace_java {
             " http://download.oracle.com/otn-pub/java/jdk/${jdk_url_path}",
           ]
         )
-            
+
         exec { 'Download Oracle Java archive file':
           command   => $download_cmd,
           cwd       => $temp_dir, # may be redundant with --directory-prefix in 'wget' command
           path      => $exec_paths,
           logoutput => true,
           creates   => "${temp_dir}/${jdk_filename}",
-          require   => Exec[ 'Find wget executable' ],
+          require   => Exec['Find wget executable'],
         }
-      
+
       }
-    
+
     }
-  
+
     case $os_family {
-    
-      RedHat: {
-                        
+
+      'RedHat': {
+
         # See in part:
         # http://www.java.com/en/download/help/linux_x64rpm_install.xml
-      
+
         exec { 'Set execute permission on Oracle Java RPM package':
           command   => "chmod a+x ${temp_dir}/${jdk_filename}",
           path      => $exec_paths,
           logoutput => on_failure,
-          require   => Exec[ 'Download Oracle Java archive file' ],
+          require   => Exec['Download Oracle Java archive file'],
         }
-      
+
         # Installs and removes any older versions.
         # ('--replacepkgs forces installation even if the package is already installed.)
         exec { 'Install and upgrade Oracle Java RPM package':
           command   => "rpm -Uvh --replacepkgs ${temp_dir}/${jdk_filename}",
           path      => $exec_paths,
           logoutput => on_failure,
-          before    => Alternatives-install [ 'java', 'javac' ],
-          require   => Exec[ 'Set execute permission on Oracle Java RPM package' ],
+          before    => alternatives_install['java', 'javac'],
+          require   => Exec['Set execute permission on Oracle Java RPM package'],
         }
-      
+
       }
-    
+
       # OS X
-      darwin: {
+      'darwin': {
         $exec_paths = $osx_exec_paths
       }
-  
+
       # Microsoft Windows
-      windows: {
+      'windows': {
       }
-  
-      default: {
+
+      'default': {
       }
-          
+
     }
-    
+
     case $::operatingsystem {
-    
+
       # TODO: Investigate whether we can succinctly install OpenJDK 8
       # under Debian 7/8, as we can under Ubuntu 16.04.x LTS
-    
-      Debian: {
+
+      'Debian': {
 
         # For this technique, see:
         # https://wiki.debian.org/JavaPackage
-    
+
         augeas { 'Add Debian contrib APT repository':
           # See documentation on constructing Augeas paths at
           # http://docs.puppetlabs.com/guides/augeas.html
@@ -354,11 +321,11 @@ class cspace_java {
           # FIXME: the following path makes some positional assumptions and thus is brittle;
           # it can and should be improved:
           changes => "set /files/etc/apt/sources.list/1[type = 'deb' and uri = 'http://http.us.debian.org/debian']/component[2] contrib",
-          require => Exec[ 'Download Oracle Java archive file' ],
+          require => Exec['Download Oracle Java archive file'],
         }
 
         exec { 'Update apt-get to reflect the new repository configuration' :
-          command   => 'apt-get -y update',  
+          command   => 'apt-get -y update',
           path      => $exec_paths,
           logoutput => on_failure,
           require   => Augeas[ 'Add Debian contrib APT repository' ],
@@ -367,28 +334,28 @@ class cspace_java {
         package { 'Install java-package' :
           ensure    => installed,
           name      => 'java-package',
-          require   => Exec[ 'Update apt-get to reflect the new repository configuration' ],
+          require   => Exec['Update apt-get to reflect the new repository configuration'],
         }
-      
+
         package { 'Install expect' :
           ensure    => installed,
           name      => 'expect',
-          require   => Package[ 'Install java-package' ],
+          require   => Package['Install java-package'],
         }
-      
+
         # Install and run an Expect script, which is stored in the top-level
         # 'files' directory in the current module.
         $script_source_path = 'puppet:///modules/cspace_java'
         $script_name        = 'make-jpkg-oraclejava.exp'
         $script_path        = "${script_source_path}/${script_name}"
-      
+
         file { 'Create expect script file':
           path    => "${temp_dir}/${script_name}",
           source  => $script_path,
           mode    => '755',
-          require => Package[ 'Install expect' ],
+          require => Package['Install expect'],
         }
-      
+
         # Run an expect script to invoke 'make-jpkg', to generate a .deb package
         # file for installing Oracle Java 8 from Oracle's binary tarball (.tar.gz) file
         # for that Java release. The expect script provides responses at various
@@ -406,9 +373,9 @@ class cspace_java {
           user        => 'nobody',
           path        => $linux_combined_exec_paths,
           logoutput   => on_failure,
-          require     => Notify[ 'Creating Debian package for Oracle Java' ],
+          require     => Notify['Creating Debian package for Oracle Java'],
         }
-      
+
         # The following reflects file naming conventions currently used by the
         # 'make-jpkg' script. This code will break and require modification if
         # any of the script's conventions change.
@@ -418,87 +385,87 @@ class cspace_java {
         }
         # E.g. oracle-j2sdk1.7_1.7.0+update55_i386.deb
         $debian_package_name = "oracle-j2sdk1.${java_version}_1.${java_version}.0+update${update_number}_${build_architecture}.deb"
-      
+
         notify { 'Installing Debian package for Oracle Java':
           message => 'Installing Debian package for Oracle Java. This may take a few minutes ...',
-          require => Exec[ 'Run expect script to make Debian package from Oracle Java archive file' ],
+          require => Exec['Run expect script to make Debian package from Oracle Java archive file'],
         }
         exec { 'Install Debian package to install Oracle Java':
           command   => "dpkg --install ${debian_package_name}",
           cwd       => $temp_dir,
           path      => $linux_combined_exec_paths,
           logoutput => on_failure,
-          require   => Notify[ 'Installing Debian package for Oracle Java' ],
-        } 
-          
+          require   => Notify['Installing Debian package for Oracle Java'],
+        }
+
       }
 
     } # end case $::operatingsystem
 
-  
+
     # ---------------------------------------------------------
     # Add key Java commands to the Linux 'alternatives' system
     # ---------------------------------------------------------
-  
+
     # TODO: Identify whether building on the existing alternatives
     # package at http://puppetforge.com/adrien/alternatives may
     # provide advantages over Exec-based management here.
-  
+
     case $os_family {
-    
-      RedHat: {
-      
+
+      'RedHat': {
+
         # TODO: Determine whether there's some non-hard-coded way to identify these paths.
         $java_target_dir  = '/usr/bin' # where to install aliases to java executables
         $java_source_dir  = '/usr/java/latest/bin' # where to find these executables
-      
-        # Uses custom 'alternatives-install' resource defined above.
+
+        # Uses custom 'alternatives_install' resource defined above.
         # See http://stackoverflow.com/a/6403457 for this looping technique
-        alternatives-install { [ 'java', 'javac' ]:
+        alternatives_install { [ 'java', 'javac' ]:
           target_dir => $java_target_dir,
           source_dir => $java_source_dir,
-          before     => Alternatives-config [ 'java', 'javac' ],
-          require    => Exec[ 'Install and upgrade Oracle Java RPM package' ],
+          before     => alternatives_config['java', 'javac'],
+          require    => Exec['Install and upgrade Oracle Java RPM package'],
         }
 
-        # Uses custom 'alternatives-config' resource defined above.
-        alternatives-config { [ 'java', 'javac' ]:
+        # Uses custom 'alternatives_config' resource defined above.
+        alternatives_config { [ 'java', 'javac' ]:
           source_dir => $java_source_dir,
-        }  
+        }
       }
-    
+
       default: {
         # Do nothing under OS families that don't use this system
       }
-    
+
     } # end case $os_family
-  
+
     case $::operatingsystem {
-        
-      Debian: {
+
+      'Debian': {
 
         # TODO: Determine whether there's some non-hard-coded way to identify these paths.
         $java_target_dir  = '/usr/bin' # where to install aliases to java executables
         $java_source_dir  = "/usr/lib/jvm/j2sdk1.${java_version}-oracle/bin" # where to find these executables
-      
-        # Uses custom 'alternatives-install' resource defined above.
+
+        # Uses custom 'alternatives_install' resource defined above.
         # See http://stackoverflow.com/a/6403457 for this looping technique
-        alternatives-install { [ 'java', 'javac' ]:
+        alternatives_install { [ 'java', 'javac' ]:
           target_dir => $java_target_dir,
           source_dir => $java_source_dir,
-          before     => Alternatives-config [ 'java', 'javac' ],
-          require    => Exec[ 'Install Debian package to install Oracle Java' ],
+          before     => alternatives_config['java', 'javac'],
+          require    => Exec['Install Debian package to install Oracle Java'],
         }
 
-        # Uses custom 'alternatives-config' resource defined above.
-        alternatives-config { [ 'java', 'javac' ]:
+        # Uses custom 'alternatives_config' resource defined above.
+        alternatives_config { [ 'java', 'javac' ]:
           source_dir => $java_source_dir,
-        }        
-      
+        }
+
       }
-    
+
     } # end case $::operatingsystem
-  
+
   } # end unless $::operatingsystem == ubuntu
 
 }
